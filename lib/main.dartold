@@ -5,13 +5,21 @@ import 'db/database_helper.dart';
 import 'package:flutter/scheduler.dart'; // Import necessário para usar SchedulerBinding
 
 void main() {
+
+  // Inicializar sqflite_common_ffi para ambientes desktop
+  //if (sqfliteFfiInit != null) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+  //}
+
   runApp(const MyApp());
+
 }
+ 
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -42,12 +50,17 @@ class _HomeScreenState extends State<_HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> listaDeAlunos = []; // Lista de alunos simulada
 
+    // Definindo o método isValidDouble dentro da classe
+ 
   bool isValidDouble(String value) {
     if (value.isEmpty) return false;
     final parsedValue = double.tryParse(value);
     return parsedValue != null;
   }
 
+
+  //get listaDeAlunos => null;  
+  
   @override
 
   void dispose() {
@@ -58,6 +71,8 @@ class _HomeScreenState extends State<_HomeScreen> {
     _focusNota1.dispose();
     super.dispose();
   }
+
+  
 
   // Função para validar o código
   void validarCodigo(String value) {
@@ -106,12 +121,9 @@ class _HomeScreenState extends State<_HomeScreen> {
               controller: _codigoController,
               keyboardType: TextInputType.number,
               focusNode: _focusCodigo,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly, // Permite apenas números
-              ],
               decoration: InputDecoration(
                 labelText: 'Código do Aluno',
-                errorText: _codigoInvalido ? 'O código deve ser um valor válido' : null,
+                errorText: _codigoInvalido ? 'O código deve ser diferente de zero e não pode ser nulo' : null,
               ),
               //onChanged: validarCodigo, 
               onChanged: (value) {
@@ -154,6 +166,7 @@ class _HomeScreenState extends State<_HomeScreen> {
                 } else {
                   FocusScope.of(context).requestFocus(_focusNota1); // Move para o próximo campo
                 }
+                
               },
             ),
             
@@ -166,6 +179,7 @@ class _HomeScreenState extends State<_HomeScreen> {
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')), // Permite números e ponto (.)
               ]
 
+
             ),
             TextField(
               maxLength: 3,
@@ -176,6 +190,7 @@ class _HomeScreenState extends State<_HomeScreen> {
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')), // Permite números e ponto (.)
               ],
 
+              
             ),
             TextField(
               maxLength: 3,
@@ -227,15 +242,7 @@ class _HomeScreenState extends State<_HomeScreen> {
                           'Código: ${estudante['aluno_codigo']}, '
                           'Nota1: ${estudante['aluno_nota1']}, '
                           'Nota2: ${estudante['aluno_nota2']}, '
-                          'Nota3: ${estudante['aluno_nota3']}, '
-                          'Situação: ${estudante['aluno_situacao']}',
-
-
-                          //'Código: ${estudante['aluno_codigo']}, '
-                          //'Nota1: ${estudante['aluno_nota1']}, '
-                          //'Nota2: ${estudante['aluno_nota2']}, '
-                          //'Nota3: ${estudante['aluno_nota3']}',
-                         // 'Situação: ${estudante['aluno_situacao']}',
+                          'Nota3: ${estudante['aluno_nota3']}',
                         ),
                       );
                     }).toList(),
@@ -252,6 +259,7 @@ class _HomeScreenState extends State<_HomeScreen> {
   void _inserirEstudante() async {
 
     int codigo = int.parse(_codigoController.text);
+    // Verifica se o aluno já existe
     bool existe = await dbHelper.alunoExiste(codigo);
     String nome = _nomeController.text;
     
@@ -268,17 +276,12 @@ class _HomeScreenState extends State<_HomeScreen> {
         return;
       }
 
-      double media = double.parse(_nota1Controller.text) + 
-      double.parse(_nota2Controller.text) + double.parse(_nota3Controller.text) / 3;
-      String situacao = media >= 6 ? 'Aprovado' : 'Reprovado';
-
       Map<String, dynamic> row = {
         'aluno_codigo': codigo,
         'aluno_nome': _nomeController.text,
         'aluno_nota1': double.parse(_nota1Controller.text),
         'aluno_nota2': double.parse(_nota2Controller.text),
         'aluno_nota3': double.parse(_nota3Controller.text),
-        'aluno_situacao': situacao,
       };
       await dbHelper.inserirEstudante(row);
      // Atualiza a UI após a inserção     
@@ -287,7 +290,27 @@ class _HomeScreenState extends State<_HomeScreen> {
       setState(() {
          listaDeAlunos.add(row);  // Supondo que você tenha uma lista de alunos
       });
+
       
+            // Aguarda um pequeno tempo para o layout ser atualizado
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          // Rola para o final da lista após a inserção
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+
+
+
+
+
+
+
+
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Aluno inserido com sucesso!')),
@@ -312,9 +335,6 @@ class _HomeScreenState extends State<_HomeScreen> {
       return;
     }
 
-     double media = double.parse(_nota1Controller.text) + 
-      double.parse(_nota2Controller.text) + double.parse(_nota3Controller.text) / 3;
-      String situacao = media >= 6 ? 'Aprovado' : 'Reprovado';
 
     Map<String, dynamic> row = {
       'aluno_codigo': int.parse(_codigoController.text),
@@ -322,15 +342,15 @@ class _HomeScreenState extends State<_HomeScreen> {
       'aluno_nota1': double.parse(_nota1Controller.text),
       'aluno_nota2': double.parse(_nota2Controller.text),
       'aluno_nota3': double.parse(_nota3Controller.text),
-      'aluno_situacao': situacao,
     };
     await dbHelper.atualizarEstudante(row);
     setState(() {});
     limparCampos();
   }
 
-  void confirmarExclusao(BuildContext context) {
+  Future<void> confirmarExclusao(BuildContext context) async {
    showDialog(
+    // ignore: use_build_context_synchronously
     context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -358,8 +378,15 @@ class _HomeScreenState extends State<_HomeScreen> {
   }
 
   void _deletarEstudante() async {
-    int codigo = int.parse(_codigoController.text);
-    await dbHelper.deletarEstudante(codigo);
+    //int codigo = int.parse(_codigoController.text);
+    //bool existe = await dbHelper.alunoExiste(codigo);
+    //await dbHelper.deletarEstudante(codigo);
+    
+    //if (!existe){
+    //  mostrarMensagem("Aluno não cadastrado ! .");
+    //  return;
+    //}
+    
     setState(() {});
     limparCampos();
   }
@@ -372,16 +399,17 @@ class _HomeScreenState extends State<_HomeScreen> {
       ),
     );
   }
-  
-  /// Critica dos campos 
-  
   bool validarCampos() {
   // Validar código
     int codigo = int.tryParse(_codigoController.text) ?? 0;
+
+
+
     if (codigo <= 0) {
       mostrarMensagem("O código deve ser maior que zero.");
       return false;
     }
+
     // Validar nome
     String nome = _nomeController.text.trim();
     if (nome.isEmpty) {
@@ -390,22 +418,25 @@ class _HomeScreenState extends State<_HomeScreen> {
     }
 
     // Validar notas
-
+    // Função para validar as notas
+    // Função para validar as notas
+    
     if (!isValidDouble(_nota1Controller.text) || 
         !isValidDouble(_nota2Controller.text) || 
         !isValidDouble(_nota3Controller.text)) {
         mostrarMensagem("As notas não podem ser nulas e devem ser números.");
         return false;
         }  
-        
     double nota1 = double.tryParse(_nota1Controller.text) ?? 0;
     double nota2 = double.tryParse(_nota2Controller.text) ?? 0;
     double nota3 = double.tryParse(_nota3Controller.text) ?? 0;
 
     if (nota1 > 10 || nota2 > 10 || nota3 > 10) {
-      mostrarMensagem(" Nota não pode ser maior que 10.");
-      return false;
+        mostrarMensagem(" Nota não pode ser maior que 10.");
+        return false;
     }
+
     return true; // Se todas as validações passarem
+    
   }
 }

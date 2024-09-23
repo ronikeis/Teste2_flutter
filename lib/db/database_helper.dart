@@ -3,10 +3,10 @@ import 'package:path/path.dart';
 import 'dart:async';
 
 class DatabaseHelper {
-  static final _dbName = 'estudantes.db';
-  static final _dbVersion = 1;
-  static final _tableEstudantes = 'tb_estudantes';
-  static final _tableLogEstudantes = 'tb_logestudantes';
+  static const _dbName = 'estudantes.db';
+  //static final _dbVersion = 1;
+  static const _tableEstudantes = 'tb_estudantes';
+  static const _tableLogEstudantes = 'tb_logestudantes';
   
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -18,7 +18,7 @@ class DatabaseHelper {
     _database = await _initDatabase();
     return _database!;
   }
-
+  
   Future<Database> _initDatabase() async {
     String path = join(await getDatabasesPath(), _dbName);
     return await openDatabase(
@@ -29,27 +29,61 @@ class DatabaseHelper {
   }
 
   Future _onCreate(Database db, int version) async {
+  // Criação da tabela de estudantes, se ainda não existir
     await db.execute('''
-      CREATE TABLE $_tableEstudantes (
+      CREATE TABLE IF NOT EXISTS tb_estudantes (
         aluno_codigo INTEGER PRIMARY KEY,
         aluno_nome TEXT,
         aluno_nota1 REAL,
         aluno_nota2 REAL,
-        aluno_nota3 REAL
-      )
+        aluno_nota3 REAL,
+        aluno_situacao TEXT
+      );
     ''');
 
+    // Criação da tabela de log, se ainda não existir
     await db.execute('''
-      CREATE TABLE $_tableLogEstudantes (
+      CREATE TABLE IF NOT EXISTS tb_logestudantes (
         log_data TEXT,
         log_time TEXT,
         log_tipoacao TEXT,
-        log_aluno INTEGER
-      )
+        log_aluno INTEGER,
+        log_situacao TEXT
+      );
+    ''');
+
+    // Criação das triggers
+    await db.execute('''
+      CREATE TRIGGER log_insercao
+      AFTER INSERT ON tb_estudantes
+      FOR EACH ROW
+      BEGIN
+          INSERT INTO tb_logestudantes (log_data, log_time, log_tipoacao, log_aluno, log_situacao)
+          VALUES (DATE('now'), TIME('now'), 'Inclusão', NEW.aluno_codigo,  NEW.aluno_situacao);
+      END;
+    ''');
+
+    await db.execute('''
+      CREATE TRIGGER log_atualizacao
+      AFTER UPDATE ON tb_estudantes
+      FOR EACH ROW
+      BEGIN
+          INSERT INTO tb_logestudantes (log_data, log_time, log_tipoacao, log_aluno, log_situacao)
+          VALUES (DATE('now'), TIME('now'), 'Alteração', NEW.aluno_codigo, NEW.aluno_situacao );
+      END;
+    ''');
+
+    await db.execute('''
+      CREATE TRIGGER log_exclusao
+      AFTER DELETE ON tb_estudantes
+      FOR EACH ROW
+      BEGIN
+          INSERT INTO tb_logestudantes (log_data, log_time, log_tipoacao, log_aluno, log_situacao)
+          VALUES (DATE('now'), TIME('now'), 'Exclusão', OLD.aluno_codigo, NEW.aluno_situacao);
+      END;
     ''');
   }
 
-  
   Future<int> inserirEstudante(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert(_tableEstudantes, row);
@@ -71,17 +105,6 @@ class DatabaseHelper {
     return await db.query(_tableEstudantes);
 
   }
-
-  Future _inserirLog(String tipoAcao, int alunoCodigo) async {
-    final db = await database;
-    DateTime now = DateTime.now();
-    await db.insert('tb_logestudantes', {
-      'log_data': now.toIso8601String().split('T')[0],
-      'log_time': now.toIso8601String().split('T')[1],
-      'log_tipoacao': tipoAcao,
-      'log_aluno': alunoCodigo
-    });
-  }
   
   // Seu código existente para a conexão com o banco de dados...
 
@@ -94,4 +117,5 @@ class DatabaseHelper {
     );
     return result.isNotEmpty; // Retorna true se o aluno já existe
   }
+
 }
